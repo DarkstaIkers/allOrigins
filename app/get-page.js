@@ -1,4 +1,10 @@
 const { got } = require('./http-client')
+const puppeteer = require('puppeteer-extra')
+const stealth = require('puppeteer-extra-plugin-stealth')
+const NodeCache = require('node-cache')
+const crpCache = new NodeCache({ stdTTL: 36000, checkperiod: 120 })
+
+puppeteer.use(stealth())
 
 module.exports = getPage
 
@@ -7,6 +13,8 @@ function getPage({ url, format, requestMethod }) {
     return getPageInfo(url)
   } else if (format === 'raw') {
     return getRawPage(url, requestMethod)
+  } else if (format === 'vilos') {
+    return getVilosMedia(url)
   }
 
   return getPageContents(url, requestMethod)
@@ -33,6 +41,55 @@ async function getRawPage(url, requestMethod) {
     content,
     contentType: response.headers['content-type'],
     contentLength,
+  }
+}
+
+async function getFromNavigation(url) {
+  const options = getStealthOptions()
+  const browser = await puppeteer.launch(options)
+  const [page] = await browser.pages()
+  await page.setViewport({ width: 800, height: 600 })
+
+  await page.goto(url, { waitUntil: 'networkidle0' })
+
+  const data = await page.evaluate(() => document.querySelector('*').outerHTML)
+  await browser.close()
+
+  return data
+}
+
+async function getVilosMedia(url) {
+  const cached = crpCache.get(url)
+  if (cached) return cached
+
+  const htmlPage = await getFromNavigation(url)
+  if (!htmlPage) return '"{}"'
+
+  const startIndex = htmlPage.indexOf('config.media =')
+  const initialConfig = htmlPage.substr(startIndex + 15)
+  const endIndex = initialConfig.indexOf('\n\n')
+  const config = initialConfig.substr(0, endIndex - 1)
+
+  crpCache.set(url, config)
+  return config
+}
+
+function getStealthOptions() {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-infobars',
+    '--window-position=0,0',
+    '--ignore-certifcate-errors',
+    '--ignore-certifcate-errors-spki-list',
+    '--user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3312.0 Safari/537.36"'
+  ]
+
+  return {
+    args,
+    headless: true,
+    ignoreHTTPSErrors: true,
+    userDataDir: './tmp'
   }
 }
 

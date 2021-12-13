@@ -67,6 +67,7 @@ async function getVilosMedia(url) {
 
   const startIndex = htmlPage.indexOf('config.media =')
   const initialConfig = htmlPage.substr(startIndex + 15)
+
   const endIndex = initialConfig.indexOf('\n\n')
   const config = initialConfig.substr(0, endIndex - 1)
 

@@ -44,33 +44,35 @@ async function getRawPage(url, requestMethod) {
   }
 }
 
+const ignore = ['media', 'font', 'image', 'stylesheet']
 async function getFromNavigation(url) {
   const options = getStealthOptions()
   const browser = await puppeteer.launch(options)
   const [page] = await browser.pages()
+  await page.setRequestInterception(true)
+  page.on('request', (request) => {
+    if (ignore.includes(request.resourceType())) request.abort()
+    else request.continue()
+  })
   await page.setViewport({ width: 800, height: 600 })
 
-  await page.goto(url, { waitUntil: 'networkidle0' })
-
+  await page.goto(url)
   const data = await page.evaluate(() => document.querySelector('*').outerHTML)
+  console.log(data)
   await browser.close()
-
   return data
 }
 
 async function getVilosMedia(url) {
   const cached = crpCache.get(url)
   if (cached) return cached
-
   const htmlPage = await getFromNavigation(url)
   if (!htmlPage) return '"{}"'
-
   const startIndex = htmlPage.indexOf('config.media =')
   const initialConfig = htmlPage.substr(startIndex + 15)
 
   const endIndex = initialConfig.indexOf('\n\n')
   const config = initialConfig.substr(0, endIndex - 1)
-
   crpCache.set(url, config)
   return config
 }

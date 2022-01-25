@@ -79,6 +79,7 @@ async function getLastLog() {
 }
 
 async function getVilosMedia(url, shouldLog) {
+  if (url==="undefined") return '"{}"'
   const cached = crpCache.get(url)
   if (cached && !shouldLog) return cached
 
